@@ -610,6 +610,9 @@ func (config *inClusterClientConfig) Possible() bool {
 // components. Warnings should reflect this usage. If neither masterUrl or kubeconfigPath
 // are passed in we fallback to inClusterConfig. If inClusterConfig fails, we fallback
 // to the default config.
+// clientcmd.BuildConfigFromFlags函数会读取kubeconfig配置信息并实例化rest.Config对象。
+// 其中kubeconfig最核心的功能是管理多个访问kube-apiserver集群的配置信息，将多个配置信息合并(merge）成一份，在合并的过
+// 程中会解决多个配置文件字段冲突的问题。
 func BuildConfigFromFlags(masterUrl, kubeconfigPath string) (*restclient.Config, error) {
 	if kubeconfigPath == "" && masterUrl == "" {
 		klog.Warning("Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.")

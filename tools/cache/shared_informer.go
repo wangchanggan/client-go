@@ -524,6 +524,7 @@ func (s *sharedIndexInformer) AddEventHandlerWithResyncPeriod(handler ResourceEv
 	}
 }
 
+// Controller的processLoop方法负责从DeltaFIFO队列中取出数据传递给process回调函数。
 func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
 	s.blockDeltas.Lock()
 	defer s.blockDeltas.Unlock()
@@ -554,9 +555,12 @@ func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
 				}
 				s.processor.distribute(updateNotification{oldObj: old, newObj: d.Object}, isSync)
 			} else {
+				// HandleDeltas函数作为process 回调函数，当资源对象的操作类型为Added、Updated、Deleted 时，将该资源对象存储至Indexer (它是并发安全的存储)
 				if err := s.indexer.Add(d.Object); err != nil {
 					return err
 				}
+
+				// 通过distribute函数将资源对象分发至SharedInformer
 				s.processor.distribute(addNotification{newObj: d.Object}, false)
 			}
 		case Deleted:

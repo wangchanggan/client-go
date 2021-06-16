@@ -59,7 +59,10 @@ type sharedInformerFactory struct {
 	lock             sync.Mutex
 	defaultResync    time.Duration
 	customResync     map[reflect.Type]time.Duration
-
+	// Shared Informer可以使同一类资源Informer 共享一个Reflector, 这样可以节约很多资源。
+	// 通过map数据结构实现共享的Informer 机制。
+	// Shared Informer 定义了一个map数据结构，用于存放所有Informer 的字段。
+	// informers字段中存储了资源类型和对应于SharedIndexInformer 的映射关系。
 	informers map[reflect.Type]cache.SharedIndexInformer
 	// startedInformers is used for tracking which informers have been started.
 	// This allows Start() to be called multiple times safely.
@@ -125,6 +128,7 @@ func NewSharedInformerFactoryWithOptions(client kubernetes.Interface, defaultRes
 }
 
 // Start initializes all requested informers.
+// 最后通过Shared Informer的Start方法使f.infomers中的每个informer通过goroutine持久运行。
 func (f *sharedInformerFactory) Start(stopCh <-chan struct{}) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -161,6 +165,7 @@ func (f *sharedInformerFactory) WaitForCacheSync(stopCh <-chan struct{}) map[ref
 
 // InternalInformerFor returns the SharedIndexInformer for obj using an internal
 // client.
+// InformerFor函数添加了不同资源的Informer, 在添加过程中如果已经存在同类型的资源Informer,则返回当前Informer,不再继续添加。
 func (f *sharedInformerFactory) InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer {
 	f.lock.Lock()
 	defer f.lock.Unlock()

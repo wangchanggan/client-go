@@ -60,8 +60,13 @@ type ThreadSafeStore interface {
 }
 
 // threadSafeMap implements ThreadSafeStore
+// ThreadSafeMap是一个内存中的存储，其中的数据并不会写入本地磁盘中，每次的增、删、改、查操作都会加锁，以保证数据的一致性。
+// ThreadSafeMap将资源对象数据存储于一个map数据结构中
 type threadSafeMap struct {
 	lock  sync.RWMutex
+	// items字段中存储的是资源对象数据，其中items的 key通过keyFunc函数计算得到
+	// 计算默认使用MetaNamespaceKeyFunc 函数，该函数根据资源对象计算出<namespace>/<name>格式的key
+	// 如果资源对象的<namespace>为空，则<name>作为key，而items 的 value 用于存储资源对象。
 	items map[string]interface{}
 
 	// indexers maps a name to an IndexFunc
@@ -177,17 +182,24 @@ func (c *threadSafeMap) Index(indexName string, obj interface{}) ([]interface{},
 }
 
 // ByIndex returns a list of the items whose indexed values in the given index include the given indexed value
+// ByIndex接收两个参数: IndexName(索引器名称)和indexKey(需要检索的key)。
 func (c *threadSafeMap) ByIndex(indexName, indexedValue string) ([]interface{}, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
+	// 从cindexers中查找指定的索引器函数
 	indexFunc := c.indexers[indexName]
 	if indexFunc == nil {
 		return nil, fmt.Errorf("Index with name %s does not exist", indexName)
 	}
 
+	// 从c.indices中查找指定的缓存器函数
 	index := c.indices[indexName]
 
+	// 根据需要检索的indexKey从缓存数据中查到并返回数据。
+	// 提示: Index中的缓存数据为Set 集合数据结构，Set 本质与Slice 相同，但Set中不存在相同元素。
+	// 由于Go语言标准库没有提供Set 数据结构，Go语言中的map结构类型是不能存在相同key的，
+	// 所以Kubernetes将map结构类型的key作为Set 数据结构，实现Set去重特性。
 	set := index[indexedValue]
 	list := make([]interface{}, 0, set.Len())
 	for key := range set {

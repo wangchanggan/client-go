@@ -63,16 +63,19 @@ var _ discovery.CachedDiscoveryInterface = &CachedDiscoveryClient{}
 // ServerResourcesForGroupVersion returns the supported resources for a group and version.
 func (d *CachedDiscoveryClient) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
 	filename := filepath.Join(d.cacheDirectory, groupVersion, "serverresources.json")
+	// 查询本地缓存
 	cachedBytes, err := d.getCachedFile(filename)
 	// don't fail on errors, we either don't have a file or won't be able to run the cached check. Either way we can fallback.
 	if err == nil {
 		cachedResources := &metav1.APIResourceList{}
 		if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), cachedBytes, cachedResources); err == nil {
 			klog.V(10).Infof("returning cached discovery info from %v", filename)
+			// 将数据直接从本地缓存返回(命中)给DiscoveryClient
 			return cachedResources, nil
 		}
 	}
 
+	// 如果数据不存在(没有命中)则请求Kubernetes API Server接口(回源)
 	liveResources, err := d.delegate.ServerResourcesForGroupVersion(groupVersion)
 	if err != nil {
 		klog.V(3).Infof("skipped caching discovery info due to %v", err)
@@ -83,6 +86,7 @@ func (d *CachedDiscoveryClient) ServerResourcesForGroupVersion(groupVersion stri
 		return liveResources, err
 	}
 
+	// Cache将Kubernetes API Server响应的数据存储在本地一份并返回给DiscoveryClient
 	if err := d.writeCachedFile(filename, liveResources); err != nil {
 		klog.V(1).Infof("failed to write cache to %v due to %v", filename, err)
 	}

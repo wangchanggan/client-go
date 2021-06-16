@@ -99,11 +99,13 @@ type DeltaFIFO struct {
 
 	// `items` maps a key to a Deltas.
 	// Each such Deltas has at least one Delta.
+	// 通过map数据结构的方式存储，value存储的是对象的Deltas数组。
 	items map[string]Deltas
 
 	// `queue` maintains FIFO order of keys for consumption in Pop().
 	// There are no duplicates in `queue`.
 	// A key is in `queue` if and only if it is in `items`.
+	// 存储资源对象的key,该key通过KeyOf 函数计算得到。
 	queue []string
 
 	// populated is true if the first batch of items inserted by Replace() has been populated
@@ -409,20 +411,26 @@ func isDeletionDup(a, b *Delta) *Delta {
 
 // queueActionLocked appends to the delta list for the object.
 // Caller must lock first.
+// DeltaFIFO队列中的资源对象在 Added（资源添加）事件、Updated（资源更新)事件、Deleted（资源删除）事件中都调用了 queueActionLocked函数，它是DeltaFIFO实现的关键。
 func (f *DeltaFIFO) queueActionLocked(actionType DeltaType, obj interface{}) error {
+	// 通过f.KeyOf函数计算出资源对象的key。
 	id, err := f.KeyOf(obj)
 	if err != nil {
 		return KeyError{obj, err}
 	}
 	oldDeltas := f.items[id]
+	// 将actionType和资源对象构造成Delta,添加到items中
 	newDeltas := append(oldDeltas, Delta{actionType, obj})
+	// 通过dedupDeltas函数进行去重操作
 	newDeltas = dedupDeltas(newDeltas)
 
 	if len(newDeltas) > 0 {
 		if _, exists := f.items[id]; !exists {
 			f.queue = append(f.queue, id)
 		}
+		// 更新构造后的Deltas
 		f.items[id] = newDeltas
+		// 通过cond.Broadcast通知所有消费者解除阻塞。
 		f.cond.Broadcast()
 	} else {
 		// This never happens, because dedupDeltas never returns an empty list
@@ -515,6 +523,8 @@ func (f *DeltaFIFO) IsClosed() bool {
 //
 // Pop returns a 'Deltas', which has a complete list of all the things
 // that happened to the object (deltas) while it was sitting in the queue.
+// Pop方法作为消费者方法使用，从DeltaFIFO的头部取出最早进入队列中的资源对象数据。
+// Pop方法须传入process 函数，用于接收并处理对象的回调方法
 func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -527,8 +537,12 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 				return nil, ErrFIFOClosed
 			}
 
+			// 当队列中没有数据时，通过f.cond.wait阻塞等待数据，
+			// 只有收到cond.Broadcast时才说明有数据被添加，解除当前阻塞状态。
 			f.cond.Wait()
 		}
+
+		// 如果队列中不为空，取出f.queue的头部数据，
 		id := f.queue[0]
 		f.queue = f.queue[1:]
 		if f.initialPopulationCount > 0 {
@@ -541,8 +555,10 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 			continue
 		}
 		delete(f.items, id)
+		// 将该对象传入process回调函数，由上层消费者进行处理。
 		err := process(item)
 		if e, ok := err.(ErrRequeue); ok {
+			// 如果process回调函数处理出错，则将该对象重新存入队列。
 			f.addIfNotPresent(id, item)
 			err = e.Err
 		}
@@ -648,6 +664,8 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 // Resync adds, with a Sync type of Delta, every object listed by
 // `f.knownObjects` whose key is not already queued for processing.
 // If `f.knownObjects` is `nil` then Resync does nothing.
+// Resync机制会将Indexer本地存储中的资源对象同步到DeltaFIFO中，并将这些资源对象设置为Sync的操作类型。
+// Resync函数在Reflector中定时执行，它的执行周期由NewRelector函数传入的resyncPeriod参数设定。
 func (f *DeltaFIFO) Resync() error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -666,6 +684,8 @@ func (f *DeltaFIFO) Resync() error {
 }
 
 func (f *DeltaFIFO) syncKeyLocked(key string) error {
+	// f.knownObjects是Indexer本地存储对象，通过该对象可以获取client-go 目前存储的所有资源对象
+	// Indexer对象在NewDeltaFIFO的数实例化DeltaFIFO对象时传入。
 	obj, exists, err := f.knownObjects.GetByKey(key)
 	if err != nil {
 		klog.Errorf("Unexpected error %v during lookup of key %v, unable to queue object for sync", err, key)

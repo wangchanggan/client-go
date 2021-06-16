@@ -30,6 +30,8 @@ import (
 type DelayingInterface interface {
 	Interface
 	// AddAfter adds an item to the workqueue after the indicated duration has passed
+	// AddAfter 方法会插入一个item (元素)参数，并附带一个duration (延迟时间)参数，该duration 参数用于指定元素延迟插入FIFO队列的时间。
+	// 如果duration小于或等于0，会直接将元素插入FIFO队列中。
 	AddAfter(item interface{}, duration time.Duration)
 }
 
@@ -85,6 +87,9 @@ type delayingType struct {
 	heartbeat clock.Ticker
 
 	// waitingForAddCh is a buffered channel that feeds waitingForAdd
+	// delayingType结构中最主要的字段是waitingForAddCh，其默认初始大小为1000
+	//通过AddAfter方法插入元素时，是非阻塞状态的，只有当插入的元素大于或等于1000时，延迟队列才会处于阻塞状态。
+	// waitingForAddCh字段中的数据通过goroutine运行的waitingLoop函数持久运行。
 	waitingForAddCh chan *waitFor
 
 	// metrics counts the number of retries

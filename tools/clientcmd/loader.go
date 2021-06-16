@@ -186,9 +186,11 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 		if _, err := os.Stat(rules.ExplicitPath); os.IsNotExist(err) {
 			return nil, err
 		}
+		// 通过文件路径（即rules.ExplicitPath)获取kubeconfig配置信息路径
 		kubeConfigFiles = append(kubeConfigFiles, rules.ExplicitPath)
 
 	} else {
+		// 通过环境变量(KUBECONFIG变量,即rules.Precedence,可指定多个路径)获取kubeconfig配置信息路径
 		kubeConfigFiles = append(kubeConfigFiles, rules.Precedence...)
 	}
 
@@ -200,6 +202,7 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 			continue
 		}
 
+		// 通过LoadFromFile函数读取数据并把读取到的数据反序列化到Config对象中
 		config, err := LoadFromFile(filename)
 
 		if os.IsNotExist(err) {
@@ -239,6 +242,7 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 	// since values are overwritten, but maps values are not, we can merge the non-map config on top of the map config and
 	// get the values we expect.
 	config := clientcmdapi.NewConfig()
+	// 将src字段填充到dst结构中，私有字段除外，非空的dst字段将被覆盖。另外，dst和src必须拥有有效的相同类型结构。
 	mergo.Merge(config, mapConfig, mergo.WithOverride)
 	mergo.Merge(config, nonMapConfig, mergo.WithOverride)
 

@@ -274,6 +274,9 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			// Attempt to gather list in chunks, if supported by listerWatcher, if not, the first
 			// list request will return the full response.
 			pager := pager.New(pager.SimplePageFunc(func(opts metav1.ListOptions) (runtime.Object, error) {
+				// r.listerWatcher.List用于获取资源下的所有对象的数据，例如，获取所有Pod的资源数据。获取资源数据是由 options的ResourceVersion（资源版本号）参数控制的,
+				// 如果ResourceVersion为0,则表示获取所有Pod的资源数据;如果Resource Version非0，则表示根据资源版本号继续获取，功能有些类似于文件传输过程中的“断点续传”,
+				// 当传输过程中遇到网络故障导致中断，下次再连接时,会根据资源版本号继续传输未完成的部分。可以使本地缓存中的数据与Etcd集群中的数据保持一致。
 				return r.listerWatcher.List(opts)
 			}))
 			switch {
@@ -343,17 +346,28 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 		if err != nil {
 			return fmt.Errorf("unable to understand list result %#v: %v", list, err)
 		}
+
+		// listMetaInterface.GetResourceVersion用于获取资源版本号，ResourceVersion(资源版本号）非常重要，Kubernetes 中所有的资源对象的版本号。
+		// 每次修改当前资源对象时，Kubernetes API Server 都会更改ResourceVersion，使得 client-go执行Watch操作时可以根据ResourceVersion来确定
+		// 当前资源对象是否发生变化。
 		resourceVersion = listMetaInterface.GetResourceVersion()
 		initTrace.Step("Resource version extracted")
+
+		// meta.ExtractList用于将资源数据转换成资源对象列表，将runtime.Object对象转换成[]runtime.Object对象。
+		// 因为r.listerWatcher.List 获取的是资源下的所有对象的数据，例如所有的Pod资源数据，所以它是一个资源列表。
 		items, err := meta.ExtractList(list)
 		if err != nil {
 			return fmt.Errorf("unable to understand list result %#v (%v)", list, err)
 		}
+
 		initTrace.Step("Objects extracted")
+
+		// r.syncWith用于将资源对象列表中的资源对象和资源版本号存储至DeltaFIFO中，并会替换已存在的对象。
 		if err := r.syncWith(items, resourceVersion); err != nil {
 			return fmt.Errorf("unable to sync list result: %v", err)
 		}
 		initTrace.Step("SyncWith done")
+		// r.setLastSyncResourceVersion用于设置最新的资源版本号。
 		r.setLastSyncResourceVersion(resourceVersion)
 		initTrace.Step("Resource version updated")
 		return nil
@@ -411,6 +425,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 
 		// start the clock before sending the request, since some proxies won't flush headers until after the first watch event is sent
 		start := r.clock.Now()
+		// r.listerWatcher.Watch函数实际调用了Pod Informer下的WatchFunc函数，它通过ClientSet客户端与Kubernetes API Server建立长连接，监控指定资源的变更事件。
 		w, err := r.listerWatcher.Watch(options)
 		if err != nil {
 			// If this is "connection refused" error, it means that most likely apiserver is not responsive.
@@ -424,6 +439,8 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			return err
 		}
 
+		// r.watchHandler用于处理资源的变更事件。当触发Added(资源添加)事件、Updated(资源更新)事件、Deleted(资源删除)事件时，
+		// 将对应的资源对象更新到本地缓存DeltaFIFO中并更新ResourceVersion资源版本号。
 		if err := r.watchHandler(start, w, &resourceVersion, resyncerrc, stopCh); err != nil {
 			if err != errorStopRequested {
 				switch {

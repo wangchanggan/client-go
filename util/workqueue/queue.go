@@ -24,11 +24,17 @@ import (
 )
 
 type Interface interface {
+	// 给队列添加元素（item)，可以是任意类型元素。
 	Add(item interface{})
+	// 返回当前队列的长度。
 	Len() int
+	// 获取队列头部的一个元素。
 	Get() (item interface{}, shutdown bool)
+	// 标记队列中该元素已被处理。
 	Done(item interface{})
+	// 关闭队列
 	ShutDown()
+	// 查询队列是否正在关闭。
 	ShuttingDown() bool
 }
 
@@ -72,15 +78,18 @@ type Type struct {
 	// queue defines the order in which we will work on items. Every
 	// element of queue should be in the dirty set and not in the
 	// processing set.
+	// 实际存储元素的地方，它是slice结构的，用于保证元素有序
 	queue []t
 
 	// dirty defines all of the items that need to be processed.
+	// 非常关键，除了能保证去重，还能保证在处理一个元素之前哪怕其被添加了多次(并发情况下)，但也只会被处理一次
 	dirty set
 
 	// Things that are currently being processed are in the processing set.
 	// These things may be simultaneously in the dirty set. When we finish
 	// processing something and remove it from this set, we'll check if
 	// it's in the dirty set, and if so, add it to the queue.
+	// 用于标记机制，标记一个元素是否在被处理。
 	processing set
 
 	cond *sync.Cond
