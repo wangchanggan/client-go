@@ -138,8 +138,55 @@ util/workqueue/default_rate_limiters.go:52
 #### 排队指数算法
 util/workqueue/default_rate_limiters.go:76,103
 
-### 计数器算法
+#### 计数器算法
 util/workqueue/default_rate_limiters.go:145,168
 
-### 混合模式
+#### 混合模式
 util/workqueue/default_rate_limiters.go:45
+
+
+
+## EventBroadcaster事件管理器
+vendor/k8s.io/api/core/v1/types.go:5463
+
+
+### EventRecorder
+tools/record/event.go:88
+
+以Event方法为例，记录当前发生的事件，Event→recorder.generateEvent→recorder.ActionOrDrop 
+
+vendor/k8s.io/apimachinery/pkg/watch/mux.go:220
+
+
+### EventBroadcaster
+tools/record/event.go:159
+
+vendor/k8s.io/apimachinery/pkg/watch/mux.go:260
+
+
+### broadcasterWatcher
+tools/record/event.go:113,297
+
+
+
+## 代码生成器（需结合kubernetes代码）
+| 代码生成器 | 说明 |
+| :---: | :---- |
+| client-gen | 一种为资源生成 ClientSet客户端的工具 |
+| lister-gen | 一种为资源生成Lister的工具(即get和 list方法) |
+| informer-gen | 一种为资源生成 Informer的工具 |
+
+
+### client-gen代码生成器
+生成规则（以Pod资源对象为例）
+$GOPATH/src/k8s.io/kubernetes/vendor/k8s.io/api/core/v1/types.go:3688
+
+$GOPATH/src/k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/client-gen/generators/generator_for_type.go:80
+
+
+### lister-gen代码生成器
+$GOPATH/src/k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/lister-gen/generators/lister.go:64
+
+
+### informer-gen代码生成器
+$GOPATH/src/k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/informer-gen/generators/packages.go:94

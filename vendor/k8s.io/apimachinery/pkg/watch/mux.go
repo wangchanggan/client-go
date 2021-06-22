@@ -219,6 +219,7 @@ func (m *Broadcaster) Action(action EventType, obj runtime.Object) {
 // false if dropped.
 func (m *Broadcaster) ActionOrDrop(action EventType, obj runtime.Object) bool {
 	select {
+	// Action函数通过goroutine 实现异步操作，该函数将事件写入m.incommit Chan 中，完成事件生产过程。
 	case m.incoming <- Event{action, obj}:
 		return true
 	default:
@@ -258,14 +259,19 @@ func (m *Broadcaster) loop() {
 // distribute sends event to all watchers. Blocking.
 func (m *Broadcaster) distribute(event Event) {
 	if m.fullChannelBehavior == DropIfChannelFull {
+		// 在分发过程中，Drphaaell标识位于select 多路复用中，使用default关键字做非阻塞分发，当w.result缓冲区满的时候，事件会丢失。
 		for _, w := range m.watchers {
 			select {
 			case w.result <- event:
 			case <-w.stopped:
 			default: // Don't block if the event can't be queued.
+			/*注意: Kubemetes中的事件与其他的资源不同，它有一个很重要的特性，那就是它可以丢失。
+			因为随着Kubernetes 系统集群规模越来越大，上报的事件越来越多，每次上报事件都要对Eted集群进行读/写，这样会给Etcd集群带来很大的压力。
+			如果某个事件丢失了，并不会影响集群的正常工作，事件的重要性远低于集群的稳定性，所以可以看到源码中当w.result缓冲区满的时候，在非阻塞分发机制下事件会丢失。*/
 			}
 		}
 	} else {
+		// WaitlfChannelFull标识也位于select多路复用中，没有default关键字，当w.result缓冲区满的时候，分发过程会阻塞并等待。
 		for _, w := range m.watchers {
 			select {
 			case w.result <- event:

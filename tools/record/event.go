@@ -97,12 +97,15 @@ type EventRecorder interface {
 	// 'message' is intended to be human readable.
 	//
 	// The resulting event will be created in the same namespace as the reference object.
+	// 对刚发生的事件进行记录。
 	Event(object runtime.Object, eventtype, reason, message string)
 
 	// Eventf is just like Event, but with Sprintf for the message field.
+	// 通过使用fmt.Sprintf格式化输出事件的格式。
 	Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{})
 
 	// AnnotatedEventf is just like eventf, but with annotations attached
+	// 功能与Eventf一样，但附加了注释(Annotations) 字段。
 	AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{})
 }
 
@@ -115,10 +118,12 @@ type EventBroadcaster interface {
 
 	// StartRecordingToSink starts sending events received from this EventBroadcaster to the given
 	// sink. The return value can be ignored or used to stop recording, if desired.
+	// 将关键性事件上报至Kubernetes API Server
 	StartRecordingToSink(sink EventSink) watch.Interface
 
 	// StartLogging starts sending events received from this EventBroadcaster to the given logging
 	// function. The return value can be ignored or used to stop recording, if desired.
+	// 将事件输出至klog stdout标准输出
 	StartLogging(logf func(format string, args ...interface{})) watch.Interface
 
 	// StartStructuredLogging starts sending events received from this EventBroadcaster to the structured
@@ -155,6 +160,10 @@ func (a *EventRecorderAdapter) Eventf(regarding, _ runtime.Object, eventtype, re
 // Creates a new event broadcaster.
 func NewBroadcaster() EventBroadcaster {
 	return &eventBroadcasterImpl{
+		// 在实例化过程中，会通过watch.NewLongQueueBroadcaster函数在内部启动goroutine (即m.loop函数)来监控m.incoming
+		// 并将监控的事件通过m.distribute函数分发给所有已连接的broadcasterWatcher。
+		// 分发过程有两种机制，分别是非阻塞分发机制和阻塞分发机制。
+		// 在非阻塞分发机制下使用DropIfChannelFull 标识，在阻塞分发机制下使用WaitlfChannelFull标识，默认为DropIfChannelFull标识。
 		Broadcaster:   watch.NewLongQueueBroadcaster(maxQueuedEvents, watch.DropIfChannelFull),
 		sleepDuration: defaultSleepDuration,
 	}
@@ -286,6 +295,8 @@ func (e *eventBroadcasterImpl) StartLogging(logf func(format string, args ...int
 // StartStructuredLogging starts sending events received from this EventBroadcaster to the structured logging function.
 // The return value can be ignored or used to stop recording, if desired.
 func (e *eventBroadcasterImpl) StartStructuredLogging(verbosity klog.Level) watch.Interface {
+	// StartLogging和StartRecordingToSink 函数依赖于StartEventWatcher 函数，
+	// 该函数内部运行了一个goroutine, 用于不断监控EventBroadcaster来发现事件并调用相关函数对事件进行处理。
 	return e.StartEventWatcher(
 		func(e *v1.Event) {
 			klog.V(verbosity).InfoS("Event occurred", "object", klog.KRef(e.InvolvedObject.Namespace, e.InvolvedObject.Name), "kind", e.InvolvedObject.Kind, "apiVersion", e.InvolvedObject.APIVersion, "type", e.Type, "reason", e.Reason, "message", e.Message)
