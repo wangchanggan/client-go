@@ -6,6 +6,40 @@ Source Code From https://github.com/kubernetes/client-go/releases/tag/kubernetes
 
 结合client-go编程式交互.doc阅读
 
+## 目录
+-   [client-go源码分析](#client-go源码分析)
+    -   [client-go源码结构](#client-go源码结构)
+    -   [Client客户端对象](#client客户端对象)
+        -   [kubeconfig配置管理](#kubeconfig配置管理)
+        -   [RESTClient客户端](#restclient客户端)
+        -   [ClientSet客户端](#clientset客户端)
+        -   [DynamicClient客户端](#dynamicclient客户端)
+        -   [DiscoveryClient客户端](#discoveryclient客户端)
+            -   [获取Kubernetes API
+                Server所支持的资源组、资源版本、资源信息](#获取kubernetes-api-server所支持的资源组资源版本资源信息)
+            -   [本地缓存的DiscoveryClient](#本地缓存的discoveryclient)
+    -   [Informer机制](#informer机制)
+        -   [Informer机制架构设计](#informer机制架构设计)
+        -   [Reflector](#reflector)
+        -   [DeltaFIFO](#deltafifo)
+        -   [Indexer](#indexer)
+    -   [WorkQueue](#workqueue)
+        -   [FIFO队列](#fifo队列)
+        -   [延迟队列](#延迟队列)
+        -   [限速队列](#限速队列)
+            -   [令牌桶算法](#令牌桶算法)
+            -   [排队指数算法](#排队指数算法)
+            -   [计数器算法](#计数器算法)
+            -   [混合模式](#混合模式)
+    -   [EventBroadcaster事件管理器](#eventbroadcaster事件管理器)
+        -   [EventRecorder](#eventrecorder)
+        -   [EventBroadcaster](#eventbroadcaster)
+        -   [broadcasterWatcher](#broadcasterwatcher)
+    -   [代码生成器（需结合kubernetes代码）](#代码生成器需结合kubernetes代码)
+        -   [client-gen代码生成器](#client-gen代码生成器)
+        -   [lister-gen代码生成器](#lister-gen代码生成器)
+        -   [informer-gen代码生成器](#informer-gen代码生成器)
+
 ## client-go源码结构
 | 源码目录 | 说明 |  备注 |
 | :---: | :---- | :---- |
