@@ -71,11 +71,13 @@ Source Code From https://github.com/kubernetes/client-go/releases/tag/kubernetes
 client-go读取kubeconfig配置信息并生成config对象，用于与kube-apiserver通信tools/clientcmd/client_config.go:616
 
 1.加载kubeconfig配置信息
+
 tools/clientcmd/loader.go:174
 
 tools/clientcmd/loader.go:406
 
 2.合并多个kubeconfig配置信息
+
 tools/clientcmd/loader.go:246
 
 
